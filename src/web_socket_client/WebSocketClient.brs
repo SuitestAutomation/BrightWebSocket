@@ -29,6 +29,7 @@ function WebSocketClient() as object
     ws._HTTP_HEADER_REGEX = createObject("roRegex", "(\w+):\s?(.*)", "")
     ws._WS_ACCEPT_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     ws._FRAME_SIZE = 1024
+    ws._CLOSING_DELAY = 30
     ws._BUFFER_SOCKET_SIZE = 4096 ' we allow 4times higher amount in buffer as max limit without waiting to clear it, figured out the last amount of buffer is about 13000 before it overload
     ws._BUFFER_SLEEP = 10
     ws._BUFFER_LOOP_LIMIT = 5000 / ws._BUFFER_SLEEP ' max waiting time till try to push another value into buffer, _BUFFER_SLEEP * _BUFFER_LOOP_LIMIT
@@ -171,7 +172,7 @@ function WebSocketClient() as object
     ' response was given, after a timeout
     ' @param self WebSocketClient
     ws._try_force_close = function () as void
-        if m._ready_state = m.STATE.CLOSING and uptime(0) - m._started_closing >= 30
+        if m._ready_state = m.STATE.CLOSING and uptime(0) - m._started_closing >= m._CLOSING_DELAY
             m._close()
         end if
     end function
