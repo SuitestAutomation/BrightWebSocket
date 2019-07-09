@@ -49,7 +49,6 @@ function WebSocketClient() as object
     ws._data[ws._buffer_size] = 0
     ws._data_size = 0
     ws._frame_data = createObject("roByteArray")
-    ws._last_ping_time = 0
     ws._started_closing = 0
     ws._hostname = ""
     ws._ws_port = createObject("roMessagePort")
@@ -165,8 +164,6 @@ function WebSocketClient() as object
             m._send_handshake()
             m._read_socket_data()
         end if
-        ' Play ping pong
-        m._try_send_ping()
         m._try_force_close()
     end function
 
@@ -176,18 +173,6 @@ function WebSocketClient() as object
     ws._try_force_close = function () as void
         if m._ready_state = m.STATE.CLOSING and uptime(0) - m._started_closing >= 30
             m._close()
-        end if
-    end function
-
-    ' Try to send a ping
-    ' @param self WebSocketClient
-    ws._try_send_ping = function () as void
-        if m._ready_state = m.STATE.OPEN and uptime(0) - m._last_ping_time >= 1
-            if m.send("", m.OPCODE.PING, true) < 0
-                m._close()
-                m._error(16, "Lost connection")
-            end if
-            m._last_ping_time = uptime(0)
         end if
     end function
 
