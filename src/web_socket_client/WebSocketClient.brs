@@ -158,7 +158,7 @@ function WebSocketClient() as object
     ' Parses one websocket frame or HTTP message, if one is available
     ' @param self WebSocketClient
     ws.run = function () as void
-        msg = wait(1, m._ws_port)
+        msg = wait(200, m._ws_port)
         ' Socket event
         if type(msg) = "roSocketEvent"
             m._send_handshake()
