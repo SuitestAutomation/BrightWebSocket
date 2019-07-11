@@ -29,6 +29,10 @@ function WebSocketClient() as object
     ws._HTTP_HEADER_REGEX = createObject("roRegex", "(\w+):\s?(.*)", "")
     ws._WS_ACCEPT_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     ws._FRAME_SIZE = 1024
+    ws._CLOSING_DELAY = 30
+    ws._BUFFER_SOCKET_SIZE = 4096 ' we allow 4times higher amount in buffer as max limit without waiting to clear it, figured out the last amount of buffer is about 13000 before it overload
+    ws._BUFFER_SLEEP = 10
+    ws._BUFFER_LOOP_LIMIT = 5000 / ws._BUFFER_SLEEP ' max waiting time till try to push another value into buffer, _BUFFER_SLEEP * _BUFFER_LOOP_LIMIT
     ' Variables
     ws._logger = Logger()
     ws._ready_state = ws.state.CLOSED
@@ -46,7 +50,6 @@ function WebSocketClient() as object
     ws._data[ws._buffer_size] = 0
     ws._data_size = 0
     ws._frame_data = createObject("roByteArray")
-    ws._last_ping_time = 0
     ws._started_closing = 0
     ws._hostname = ""
     ws._ws_port = createObject("roMessagePort")
@@ -156,14 +159,12 @@ function WebSocketClient() as object
     ' Parses one websocket frame or HTTP message, if one is available
     ' @param self WebSocketClient
     ws.run = function () as void
-        msg = wait(1, m._ws_port)
+        msg = wait(200, m._ws_port)
         ' Socket event
         if type(msg) = "roSocketEvent"
             m._send_handshake()
             m._read_socket_data()
         end if
-        ' Play ping pong
-        m._try_send_ping()
         m._try_force_close()
     end function
 
@@ -171,20 +172,8 @@ function WebSocketClient() as object
     ' response was given, after a timeout
     ' @param self WebSocketClient
     ws._try_force_close = function () as void
-        if m._ready_state = m.STATE.CLOSING and uptime(0) - m._started_closing >= 30
+        if m._ready_state = m.STATE.CLOSING and uptime(0) - m._started_closing >= m._CLOSING_DELAY
             m._close()
-        end if
-    end function
-
-    ' Try to send a ping
-    ' @param self WebSocketClient
-    ws._try_send_ping = function () as void
-        if m._ready_state = m.STATE.OPEN and uptime(0) - m._last_ping_time >= 1
-            if m.send("", m.OPCODE.PING, true) < 0
-                m._close()
-                m._error(16, "Lost connection")
-            end if
-            m._last_ping_time = uptime(0)
         end if
     end function
 
@@ -278,7 +267,7 @@ function WebSocketClient() as object
             ' 16 bit uint
             if length_7 = 126
                 frame.append(short_to_bytes(payload.count()))
-            ' 64 bit uint
+                ' 64 bit uint
             else if length_7 = 127
                 frame.append(long_to_bytes(payload.count()))
             end if
@@ -307,6 +296,15 @@ function WebSocketClient() as object
             end if
             if _opcode <> m.OPCODE.PING
                 m._logger.printl(m._logger.VERBOSE, "WebSocketClient: Sent " + sent.toStr() + " bytes")
+                loop_wait = 0
+                while m._socket.GetCountSendBuf() > m._BUFFER_SOCKET_SIZE
+                    m._logger.printl(m._logger.VERBOSE, "WebSocketClient: Sleeping " + m._BUFFER_SLEEP.toStr() + "ms to reduce buffer")
+                    sleep(m._BUFFER_SLEEP)
+                    if loop_wait > m._BUFFER_LOOP_LIMIT
+                        exit while
+                    end if
+                    loop_wait++
+                end while
             end if
             total_sent += sent
             if sent <> frame.count()
@@ -376,8 +374,8 @@ function WebSocketClient() as object
         end if
         buffer_index = 0
         for byte_index = m._data_size to m._data_size + bytes_received - 1
-                m._data[byte_index] = buffer[buffer_index]
-                buffer_index++
+            m._data[byte_index] = buffer[buffer_index]
+            buffer_index++
         end for
         m._data_size += bytes_received
         m._data[m._data_size] = 0
@@ -429,14 +427,14 @@ function WebSocketClient() as object
             ' Handle control frame
             if control
                 m._handle_frame(opcode, payload)
-            ' Handle data frame
+                ' Handle data frame
             else if final
                 full_payload = createObject("roByteArray")
                 full_payload.append(m._frame_data)
                 full_payload.append(payload)
                 m._handle_frame(opcode, full_payload)
                 m._frame_data.clear()
-            ' Check for continuation frame
+                ' Check for continuation frame
             else
                 m._frame_data.append(payload)
             end if
@@ -451,7 +449,7 @@ function WebSocketClient() as object
             else
                 m._data.clear()
             end if
-        ' HTTP/Handshake
+            ' HTTP/Handshake
         else
             data = m._data.toAsciiString()
             http_delimiter = m._NL + m._NL
@@ -512,12 +510,12 @@ function WebSocketClient() as object
                     m._close()
                     m._error(9, "Invalid handshake: invalid upgrade header: " + header[2])
                     return
-                ' Connection
+                    ' Connection
                 else if ucase(header[1]) = "CONNECTION" and ucase(header[2]) <> "UPGRADE"
                     m._close()
                     m._error(10, "Invalid handshake: invalid connection header: " + header[2])
                     return
-                ' Sec-WebSocket-Accept
+                    ' Sec-WebSocket-Accept
                 else if ucase(header[1]) = "SEC-WEBSOCKET-ACCEPT"
                     expected_array = createObject("roByteArray")
                     expected_array.fromAsciiString(m._sec_ws_key + m._WS_ACCEPT_GUID)
@@ -529,12 +527,12 @@ function WebSocketClient() as object
                         m._error(11, "Invalid handshake: Sec-WebSocket-Accept value is invalid: " + header[2])
                         return
                     end if
-                ' Sec-WebSocket-Extensions
+                    ' Sec-WebSocket-Extensions
                 else if ucase(header[1]) = "SEC-WEBSOCKET-EXTENSIONS" and header[2] <> ""
                     m._close()
                     m._error(12, "Invalid handshake: Sec-WebSocket-Extensions value is invalid: " + header[2])
                     return
-                ' Sec-WebSocket-Protocol
+                    ' Sec-WebSocket-Protocol
                 else if ucase(header[1]) = "SEC-WEBSOCKET-PROTOCOL"
                     p = header[2].trim()
                     was_requested = false
@@ -587,18 +585,18 @@ function WebSocketClient() as object
         if opcode = m.OPCODE.CLOSE
             m._close()
             return
-        ' Ping
+            ' Ping
         else if opcode = m.OPCODE.PING
             m.send("", m.OPCODE.PONG)
             return
-        ' Text
+            ' Text
         else if opcode = m.OPCODE.TEXT
             m._post_message("on_message", {
                 type: 0,
                 message: payload.toAsciiString()
             })
             return
-        ' Data
+            ' Data
         else if opcode = m.OPCODE.BINARY
             payload_array = []
             for each byte in payload
@@ -692,6 +690,10 @@ function WebSocketClient() as object
             m._state(m.STATE.CONNECTING)
             address = createObject("roSocketAddress")
             address.setHostName(host)
+            ' set up segmentation on 576 which is lowest value of MTU speed up
+            ' transmition around 15%-22%, tested on 4660X - Roku Ultra and
+            ' 3500EU - Roku Stick
+            address.setMaxSeg(576)
             address.setPort(port)
             if not address.isAddressValid()
                 m._close()

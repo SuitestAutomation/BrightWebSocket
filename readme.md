@@ -1,6 +1,8 @@
 # BrightWebSocket
 
-A ScreneGraph websocket client library written in BrightScript
+A ScreneGraph websocket client library written in BrightScript. It is written to work in a separate task to not affect the main thread of the application.
+
+Many thanks to [rolandoislas/BrightWebSocket](https://github.com/rolandoislas/BrightWebSocket) who originally developed this library.
 
 # RFC 6455
 
@@ -44,6 +46,19 @@ end function
 
 For a working sample app see the "test" folder. Its contents can be zipped for
  installation as a dev channel on a Roku.
+ 
+# Additional information
+
+## A differences between `roUrlTransfer` and `roStreamSocket`
+
+The `roUrltransfer` is sending larger data faster, Roku replied to this with the following:
+> Could be the difference between using curlLibrary and lower-level roStreamSocket implementation. The curl library is highly optimized as we use it for all the manifest handling in streaming.
+
+The `roStreamSocket` is separated into standalone thread but still is serialized, devices handling a higher amount of data could overload a buffer for some situations and data could send for longer. 
+
+We approximately measured _230KB/s_ on **4660X - Roku Ultra** and _15KB/s_ on **3500EU - Roku Stick**.
+
+To send larger amount of data we suggest to use `roUrlTransfer` instead. Won't be improved/fixed in near future.
 
 # License
 
