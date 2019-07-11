@@ -27,6 +27,7 @@ function init() as void
     m.ws.observeField("on_error", "on_error")
     m.ws.protocols = []
     m.ws.headers = []
+    m.ws.log_level = "INFO"
     m.SERVER = "ws://echo.websocket.org/"
     m.ws.open = m.SERVER
     m.reinitialize = false

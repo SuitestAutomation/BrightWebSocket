@@ -10,3 +10,4 @@ ws.on("connection", function (socket) {
         console.error(error);
     });
 });
+console.log("Started echo websocket server on port 5000")
