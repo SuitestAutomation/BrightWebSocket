@@ -2,7 +2,7 @@ The MIT License (MIT)
 
 BrightWebSocket - BrightScript websocket library
 Copyright © 2018 Rolando Islas
-Copyright © 2019 mineus s.r.o.
+Copyright © 2019 Suitest s.r.o.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the “Software”), to deal in
