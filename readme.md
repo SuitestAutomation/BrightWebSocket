@@ -31,7 +31,7 @@ Example:
 function init() as void
     m.ws = createObject("roSGNode", "WebSocketClient")
     m.ws.observeField("on_open", "on_open")
-    m.ws.observeFiled("on_message", "on_message")
+    m.ws.observeField("on_message", "on_message")
     m.ws.open = "ws://echo.websocket.org/"
 end function
 
