@@ -690,10 +690,6 @@ function WebSocketClient() as object
             m._state(m.STATE.CONNECTING)
             address = createObject("roSocketAddress")
             address.setHostName(host)
-            ' set up segmentation on 576 which is lowest value of MTU speed up
-            ' transmition around 15%-22%, tested on 4660X - Roku Ultra and
-            ' 3500EU - Roku Stick
-            address.setMaxSeg(576)
             address.setPort(port)
             if not address.isAddressValid()
                 m._close()
@@ -705,6 +701,10 @@ function WebSocketClient() as object
             m._socket.notifyReadable(true)
             m._socket.notifyWritable(true)
             m._socket.notifyException(true)
+            ' set up segmentation on 576 which is lowest value of MTU speed up
+            ' transmition around 15%-22%, tested on 4660X - Roku Ultra and
+            ' 3500EU - Roku Stick
+            m._socket.setMaxSeg(576)
             m._socket.setMessagePort(m._ws_port)
             m._socket.setSendToAddress(address)
             m._sent_handshake = false
